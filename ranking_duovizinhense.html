@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ranking Duovizinhense</title>
+<style>
+:root{--navy:#102a43;--blue:#1769aa;--pale:#eef5fb;--ink:#172b4d;--muted:#62748a;--line:#dce5ee;--gold:#d8a62e}
+*{box-sizing:border-box}body{margin:0;background:#f4f7fb;color:var(--ink);font:15px/1.5 Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+header{background:linear-gradient(125deg,#0b2035,#174b75);color:#fff;padding:34px 20px 30px}
+.wrap{max-width:1100px;margin:auto} .eyebrow{text-transform:uppercase;letter-spacing:.16em;font-size:11px;font-weight:800;color:#b8d7f2}
+h1{font-size:clamp(30px,5vw,46px);line-height:1.05;margin:9px 0 10px;letter-spacing:-.04em}
+header p{color:#d7e8f6;margin:0;max-width:680px}
+main{max-width:1100px;margin:24px auto;padding:0 16px 40px}
+.panel{background:white;border:1px solid var(--line);border-radius:16px;box-shadow:0 8px 24px #102a430a;overflow:hidden}
+.filters{display:grid;grid-template-columns:2fr 1fr 1fr;gap:14px;padding:18px;border-bottom:1px solid var(--line)}
+label{display:block;font-size:12px;font-weight:800;color:var(--muted);margin-bottom:6px}
+select,input{width:100%;border:1px solid #cbd7e3;background:#fff;color:var(--ink);padding:11px 12px;border-radius:9px;font:inherit}
+.meta{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:14px 18px;color:var(--muted);font-size:13px}
+.table-wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:560px}
+th{text-align:left;background:#f7f9fc;color:#65768a;text-transform:uppercase;letter-spacing:.06em;font-size:11px;padding:12px 16px}
+td{padding:14px 16px;border-top:1px solid #edf1f5}
+tbody tr:hover{background:#f8fbff}.rank{font-weight:800;color:#74869a;width:60px}.name{font-weight:750}.id{font-size:11px;color:var(--muted);font-weight:500}
+.result{font-weight:800;font-variant-numeric:tabular-nums;font-size:16px}.noresult{color:#a0adba;font-weight:500}
+a{color:inherit;text-decoration:none}a:hover .name{color:var(--blue);text-decoration:underline}
+.medal{display:inline-grid;place-items:center;width:25px;height:25px;border-radius:50%;background:#edf2f7;font-size:12px;margin-right:8px}
+.medal.first{background:#fff2c7;color:#8b6500}.medal.second{background:#e9edf2;color:#536273}.medal.third{background:#f8e2d3;color:#93512d}
+.status{padding:12px 18px;color:var(--muted);font-size:13px;background:#fbfcfe;border-top:1px solid var(--line)}
+footer{color:var(--muted);font-size:12px;margin:16px 3px;line-height:1.6}
+@media(max-width:650px){.filters{grid-template-columns:1fr}.meta{align-items:flex-start;flex-direction:column}header{padding-top:26px}}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+<div class="eyebrow">Speedcubing • Dois Vizinhos, PR</div>
+<h1>Ranking Duovizinhense</h1>
+<p>Os melhores resultados oficiais dos competidores de Dois Vizinhos. Escolha a modalidade e compare single ou média.</p>
+</div></header>
+<main>
+<section class="panel">
+<div class="filters">
+<div><label for="event">MODALIDADE</label><select id="event"><option value="333">3x3x3 Cube</option></select></div>
+<div><label for="type">TIPO DE RESULTADO</label><select id="type"><option value="single">Single</option><option value="average">Média</option></select></div>
+<div><label for="search">BUSCAR COMPETIDOR</label><input id="search" type="search" placeholder="Nome ou WCA ID"></div>
+</div>
+<div class="meta"><span id="count">Carregando resultados oficiais…</span><span id="updated">Fonte: dados públicos da WCA</span></div>
+<div class="table-wrap"><table><thead><tr><th>Pos.</th><th>Competidor</th><th id="resultHead">Melhor single</th></tr></thead><tbody id="rows"><tr><td colspan="3">Carregando…</td></tr></tbody></table></div>
+<div class="status" id="status">Buscando perfis e resultados oficiais. A primeira carga pode levar alguns segundos.</div>
+</section>
+<footer>Dados de resultados: World Cube Association (WCA), via API pública não oficial atualizada periodicamente; os resultados são importados ao abrir a página. O Ranking Duovizinhense é um projeto independente e não é afiliado à WCA. Resultados DNF/DNS ou inexistentes não são classificados. <br><a href="https://www.worldcubeassociation.org/results/rankings/333/single" target="_blank" rel="noopener">Consultar ranking oficial da WCA ↗</a></footer>
+</main>
+<script>
+const IDS = ["2019DEVE02","2022SOUZ13","2025CALG01","2025NUNE11","2025WEIS05","2025FERR28","2025MORA38","2025BRAN18","2026ORBE02","2026OLIV32","2026PELL03","2026COST14","2026VERZ01","2026LATE01","2026SART03","2026RIBE03","2026SANT57"];
+const API="https://raw.githubusercontent.com/robiningelbrecht/wca-rest-api/refs/heads/v1";
+let people=[], events=[];
+const $=id=>document.getElementById(id);
+function asArray(x){return Array.isArray(x)?x:(x&&typeof x==="object"?Object.values(x):[])}
+function findResultRecords(obj, out=[], seen=new Set(), parentEvent=null){
+ if(!obj||typeof obj!=="object"||seen.has(obj))return out;
+ seen.add(obj);
+ if(Array.isArray(obj)){
+  for(const x of obj)findResultRecords(x,out,seen,parentEvent);
+  return out;
+ }
+ const eventPattern=/^(333|222|444|555|666|777|333bf|333fm|333oh|clock|minx|pyram|skewb|sq1|444bf|555bf|333mbf|444oh|555oh|333ft|333mbo|magic|mmagic)$/;
+ const eventId=obj.eventId||obj.event_id||obj.event||parentEvent;
+ const type=String(obj.type||obj.rankType||obj.rank_type||"").toLowerCase();
+ const rawBest=obj.best??obj.value??obj.result;
+ const numericBest=Number(rawBest);
+ // Personal best records may be represented as {eventId, type: "single"|"average", best: ...}.
+ if(eventId && (type==="single"||type==="average") && Number.isFinite(numericBest)){
+  out.push({eventId:String(eventId),type,best:numericBest});
+ }
+ // Other API representations may store event results with explicit best/average fields.
+ if(eventId && ("best" in obj || "average" in obj) && !type){
+  const b=Number(obj.best), a=Number(obj.average);
+  out.push({eventId:String(eventId),type:"single",best:Number.isFinite(b)?b:0});
+  out.push({eventId:String(eventId),type:"average",best:Number.isFinite(a)?a:0});
+ }
+ for(const [k,v] of Object.entries(obj)){
+  if(!v||typeof v!=="object")continue;
+  if(eventPattern.test(k)){
+   if(!Array.isArray(v)){
+    const single=v.single, average=v.average;
+    if(single!==undefined){
+     const b=Number(typeof single==="object"?(single.best??single.value??0):single);
+     if(Number.isFinite(b))out.push({eventId:k,type:"single",best:b});
+    }
+    if(average!==undefined){
+     const a=Number(typeof average==="object"?(average.best??average.value??0):average);
+     if(Number.isFinite(a))out.push({eventId:k,type:"average",best:a});
+    }
+    if("best" in v){
+     const b=Number(v.best);
+     if(Number.isFinite(b))out.push({eventId:k,type:"single",best:b});
+    }
+   }
+  }
+  findResultRecords(v,out,seen,eventPattern.test(k)?k:parentEvent);
+ }
+ return out;
+}
+function cleanRecords(person){
+ const found=findResultRecords(person);
+ const map={};
+ for(const r of found){
+  const e=String(r.eventId||"");
+  if(!e)continue;
+  if(!map[e])map[e]={best:0,average:0};
+  const value=Number(r.best);
+  if(!Number.isFinite(value)||value<=0)continue;
+  const key=r.type==="average"?"average":"best";
+  if(!map[e][key]||value<map[e][key])map[e][key]=value;
+ }
+ return map;
+}
+function format(value,eventId){
+ if(!value||value<1)return null;
+ const ev=events.find(e=>e.id===eventId);
+ if(ev && ev.format==="number")return String(value);
+ if(ev && ev.format==="multi")return String(value);
+ const cs=Math.abs(value), mins=Math.floor(cs/6000), secs=Math.floor((cs%6000)/100), cent=cs%100;
+ if(mins>0)return `${mins}:${String(secs).padStart(2,"0")}.${String(cent).padStart(2,"0")}`;
+ return `${secs}.${String(cent).padStart(2,"0")}`;
+}
+function resultValue(p,event,type){const r=p.records?.[event];return r?(type==="single"?r.best:r.average)||0:0}
+function render(){
+ const ev=$("event").value,type=$("type").value,q=$("search").value.trim().toLowerCase();
+ $("resultHead").textContent=type==="single"?"Melhor single":"Melhor média";
+ let list=people.map(p=>({...p,value:resultValue(p,ev,type)})).filter(p=>(p.name+" "+p.id).toLowerCase().includes(q));
+ list.sort((a,b)=>{if(!a.value&&!b.value)return a.name.localeCompare(b.name);if(!a.value)return 1;if(!b.value)return -1;return a.value-b.value||a.name.localeCompare(b.name)});
+ $("count").textContent=`${list.filter(p=>p.value>0).length} de ${people.length} competidores com resultado nesta modalidade`;
+ $("rows").innerHTML="";
+ if(!list.length){$("rows").innerHTML='<tr><td colspan="3">Nenhum competidor encontrado.</td></tr>';return}
+ list.forEach((p,i)=>{
+  const tr=document.createElement("tr");
+  const medalClass=i===0?"first":i===1?"second":i===2?"third":"";
+  const pos=i+1;
+  const display=p.value?format(p.value,ev):null;
+  tr.innerHTML=`<td class="rank">${p.value?`<span class="medal ${medalClass}">${pos}</span>`:"—"}</td>
+  <td><a href="https://www.worldcubeassociation.org/persons/${encodeURIComponent(p.id)}" target="_blank" rel="noopener"><div class="name">${escapeHtml(p.name)}</div><div class="id">${p.id} · ver perfil WCA ↗</div></a></td>
+  <td class="result">${display||'<span class="noresult">Sem resultado</span>'}</td>`;
+  $("rows").appendChild(tr);
+ });
+}
+function escapeHtml(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+async function load(){
+ try{
+  const evRes=await fetch(`${API}/events.json`);
+  if(evRes.ok){const d=await evRes.json();events=asArray(d.items||d).map(e=>({id:e.id,name:e.name,format:e.format})).filter(e=>e.id&&e.name);
+   if(events.length){$("event").innerHTML=events.map(e=>`<option value="${escapeHtml(e.id)}">${escapeHtml(e.name)}</option>`).join("");$("event").value="333"}
+  }
+ }catch(e){}
+ const results=await Promise.allSettled(IDS.map(async id=>{
+  const res=await fetch(`${API}/persons/${id}.json`);
+  if(!res.ok)throw new Error(id);
+  const p=await res.json();
+  return {id:p.id||id,name:p.name||id,records:cleanRecords(p)};
+ }));
+ people=results.filter(x=>x.status==="fulfilled").map(x=>x.value);
+ const failed=results.filter(x=>x.status==="rejected").length;
+ $("status").textContent=failed?`Importação parcial: ${failed} perfil(is) não retornaram dados da API. Tente recarregar a página.`:"Resultados importados da API pública de dados da WCA. Clique no nome para abrir o perfil oficial.";
+ if(!people.length){$("status").textContent="Não foi possível carregar a API agora. Verifique sua conexão e recarregue a página. A API é externa e pode ficar temporariamente indisponível."}
+ render();
+}
+$("event").addEventListener("change",render);$("type").addEventListener("change",render);$("search").addEventListener("input",render);
+load();
+</script>
+</body>
+</html>
